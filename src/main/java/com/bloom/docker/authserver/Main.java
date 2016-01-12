@@ -7,12 +7,10 @@ import org.eclipse.egit.github.core.User;
 import org.eclipse.egit.github.core.client.GitHubClient;
 import org.eclipse.egit.github.core.client.RequestException;
 import org.eclipse.egit.github.core.service.OrganizationService;
+import org.eclipse.egit.github.core.service.UserService;
 
 import java.io.FileInputStream;
-import java.security.KeyPair;
-import java.security.KeyStore;
-import java.security.PrivateKey;
-import java.security.PublicKey;
+import java.security.*;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -25,18 +23,31 @@ import static spark.Spark.*;
 public class Main {
 
     private static final PrimitiveIterator.OfLong randomStream = new Random().longs().iterator();
-    private static final KeyPair keyPair;
-    private static final String id;
+
+
     private static final DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
+
+    public static final String KEY_STORE = System.getenv("KEY_STORE");
+
+    public static final String KEY_STORE_PASSWORD = System.getenv("KEY_STORE_PASSWORD");
+
+    public static final String KEY_ID = System.getenv("KEY_ID"); //"DF63:MN25:ABEN:ZYXG:5KZA:OMSH:5EXI:OFDR:X6YT:ZMRF:RVEL:JBOM"
+
+    public static final List<String> GITHUB_ORG = Arrays.asList(System.getenv("GITHUB_ORG").split(",")); // "LiftOffLLC"
+
+    public static final List<String> GITHUB_USERS = Arrays.asList(System.getenv("GITHUB_USERS").split(","));
+
+    public static final String AUDIENCE = System.getenv("AUDIENCE");
+
+    public static final String ISSUER = System.getenv("ISSUER");
+
+    private static final Key KEY;
 
     static {
         try {
             KeyStore keystore = KeyStore.getInstance(KeyStore.getDefaultType());
-            keystore.load(new FileInputStream("/ssd2/containers/thrivelykeys/dockerkeys/authkeys/keystore.jks"), "xmc4VHCF".toCharArray());
-            PrivateKey privateKey = (PrivateKey) keystore.getKey("selfsigned", "xmc4VHCF".toCharArray());
-            PublicKey publicKey = keystore.getCertificate("selfsigned").getPublicKey();
-            keyPair = new KeyPair(publicKey, privateKey);
-            id = "DF63:MN25:ABEN:ZYXG:5KZA:OMSH:5EXI:OFDR:X6YT:ZMRF:RVEL:JBOM";
+            keystore.load(new FileInputStream(KEY_STORE), KEY_STORE_PASSWORD.toCharArray());
+            KEY = keystore.getKey("selfsigned", KEY_STORE_PASSWORD.toCharArray());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -48,22 +59,24 @@ public class Main {
 
     public static void main(String... args) {
         port(8443);
-        secure("/ssd2/containers/thrivelykeys/dockerkeys/authkeys/keystore.jks", "xmc4VHCF", null, null);
+        secure(KEY_STORE, KEY_STORE_PASSWORD, null, null);
 
         get("/auth", (req, res) -> {
             Set<String> queryParams = req.queryParams();
-            if (queryParams.contains("account")) {
+            if (queryParams.contains("account") && req.headers().contains("Authorization")) {
                 String usernamePass = new String(Base64.getDecoder().decode(req.headers("Authorization").split(" ")[1]));
                 String username = usernamePass.split(":")[0];
                 String pass = usernamePass.split(":")[1];
                 GitHubClient client = new GitHubClient();
                 client.setCredentials(username, pass);
                 OrganizationService organizationService = new OrganizationService(client);
-
+                UserService userService = new UserService(client);
                 try {
-                    List<User> organizations = organizationService.getOrganizations();
-                    if (!organizations.stream().filter(user1 -> user1.getLogin().equals("LiftOffLLC")).findFirst().isPresent()) {
-                        halt(401);
+                    if (!GITHUB_USERS.contains(userService.getUser().getLogin())) {
+                        List<User> organizations = organizationService.getOrganizations();
+                        if (!organizations.stream().filter(user1 -> GITHUB_ORG.contains(user1.getLogin())).findFirst().isPresent()) {
+                            halt(401);
+                        }
                     }
                 } catch (RequestException e) {
                     res.status(e.getStatus());
@@ -73,16 +86,10 @@ public class Main {
                 res.status(200);
                 res.type("application/json");
                 res.body(token);
-                System.out.println(token);
                 return token;
-                // Authenticate
-                //return token
-            } else if (!req.headers().contains("Authorization")) {
-                halt(401);
-                return "";
             } else {
                 halt(401);
-                return "";
+                return "{}";
             }
         });
     }
@@ -94,24 +101,24 @@ public class Main {
 
         JwtBuilder builder = Jwts.builder()
                 .setHeaderParam("typ", "JWT")
-                .setHeaderParam("kid", id);
+                .setHeaderParam("kid", KEY_ID);
 
-        if(scope != null && scope.trim().length() > 0) {
+        if (scope != null && scope.trim().length() > 0) {
             builder.setClaims(getClaims(scope));
         }
 
-        String s = builder.setAudience("Thively Docker Registry")
+        String s = builder.setAudience(AUDIENCE)
                 .setExpiration(expiration)
                 .setIssuedAt(issuedAt)
                 .setNotBefore(notBefore)
                 .setId(randomStream.next().toString())
                 .setSubject(account)
-                .setIssuer("Github")
-                .signWith(SignatureAlgorithm.RS256, keyPair.getPrivate()).compact();
+                .setIssuer(ISSUER)
+                .signWith(SignatureAlgorithm.RS256, KEY).compact();
 
-        return "{\"token\":\n" +
-                "        \"" + s + "\", \"access_token\": \"" + s + "\", \"expires_in\":\n" +
-                "        \"3600\", \"issued_at\":\"" + dateFormat.format(issuedAt) + "\"}";
+        return "{\"token\":" +
+                "\"" + s + "\", \"access_token\": \"" + s + "\", \"expires_in\":" +
+                "\"3600\", \"issued_at\":\"" + dateFormat.format(issuedAt) + "\"}";
     }
 
     private static Map<String, Object> getClaims(String scope) {
