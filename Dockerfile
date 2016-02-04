@@ -8,7 +8,7 @@ COPY ./ build/
 WORKDIR /build
 
 RUN /opt/apache-maven-3.3.3/bin/mvn install -DskipTests=true
-EXPOSE 8443
+EXPOSE 8080
 
 ENV KEY_STORE=**changeme**
 ENV KEY_STORE_PASSWORD=**changeme**
@@ -18,4 +18,4 @@ ENV GITHUB_USERS=**changeme**
 ENV AUDIENCE=**changeme**
 ENV ISSUER=**changeme**
 
-CMD /usr/bin/java $JAVA_OPTS $JAVA_SSL_OPTS -XX:OnOutOfMemoryError="kill -9 %p" -jar target/authserver-1.0.one-jar.jar
+CMD /usr/bin/java -XX:OnOutOfMemoryError="kill -9 %p" -jar target/authserver-1.0.one-jar.jar

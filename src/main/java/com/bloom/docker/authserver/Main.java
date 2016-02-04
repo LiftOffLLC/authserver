@@ -21,26 +21,17 @@ import static spark.Spark.*;
 /**
  * Created by paggarwal on 1/7/16.
  */
-public class Main {
-
-    private static final PrimitiveIterator.OfLong randomStream = new Random().longs().iterator();
-
-    private static final DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
+public final class Main {
 
     public static final String KEY_STORE = System.getenv("KEY_STORE");
-
     public static final String KEY_STORE_PASSWORD = System.getenv("KEY_STORE_PASSWORD");
-
-    public static final String KEY_ID = System.getenv("KEY_ID"); //"DF63:MN25:ABEN:ZYXG:5KZA:OMSH:5EXI:OFDR:X6YT:ZMRF:RVEL:JBOM"
-
-    public static final List<String> GITHUB_ORG = Arrays.asList(System.getenv("GITHUB_ORG").split(",")); // "LiftOffLLC"
-
+    public static final String KEY_ID = System.getenv("KEY_ID");
+    public static final List<String> GITHUB_ORG = Arrays.asList(System.getenv("GITHUB_ORG").split(","));
     public static final List<String> GITHUB_USERS = Arrays.asList(System.getenv("GITHUB_USERS").split(","));
-
     public static final String AUDIENCE = System.getenv("AUDIENCE");
-
     public static final String ISSUER = System.getenv("ISSUER");
-
+    private static final PrimitiveIterator.OfLong randomStream = new Random().longs().iterator();
+    private static final DateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
     private static final Key KEY;
 
     static {
@@ -54,13 +45,11 @@ public class Main {
     }
 
     static {
-        dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+        DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
     public static void main(String... args) {
-        port(8443);
-        secure(KEY_STORE, KEY_STORE_PASSWORD, null, null);
-
+        port(8080);
         get("/auth", (req, res) -> {
             Set<String> queryParams = req.queryParams();
             if (queryParams.contains("account") && req.headers().contains("Authorization")) {
@@ -117,8 +106,8 @@ public class Main {
                 .signWith(SignatureAlgorithm.RS256, KEY).compact();
 
         return "{\"token\":" +
-                "\"" + s + "\", \"access_token\": \"" + s + "\", \"expires_in\":" +
-                "\"3600\", \"issued_at\":\"" + dateFormat.format(issuedAt) + "\"}";
+                '"' + s + "\", \"access_token\": \"" + s + "\", \"expires_in\":" +
+                "\"3600\", \"issued_at\":\"" + DATE_FORMAT.format(issuedAt) + "\"}";
     }
 
     private static Map<String, Object> getClaims(String scope) {
@@ -133,9 +122,7 @@ public class Main {
             entryMap.put("name", entry.split(":")[1]);
 
             List<String> actions = new ArrayList<>();
-            for (String action : entry.split(":")[2].split(",")) {
-                actions.add(action);
-            }
+            Collections.addAll(actions, entry.split(":")[2].split(","));
             entryMap.put("actions", actions);
             list.add(entryMap);
 
