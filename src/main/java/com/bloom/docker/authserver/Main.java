@@ -51,6 +51,7 @@ public final class Main {
     public static void main(String... args) {
         port(8080);
         get("/auth", (req, res) -> {
+            System.out.println("Request = " + req);
             Set<String> queryParams = req.queryParams();
             if (queryParams.contains("account") && req.headers().contains("Authorization")) {
                 String usernamePass = new String(Base64.getDecoder().decode(req.headers("Authorization").split(" ")[1]));
@@ -64,7 +65,9 @@ public final class Main {
                     if (!GITHUB_USERS.contains(userService.getUser().getLogin())) {
                         List<User> organizations = organizationService.getOrganizations();
                         if (!organizations.stream().filter(user1 -> GITHUB_ORG.contains(user1.getLogin())).findFirst().isPresent()) {
+                            System.out.println("Github failed = {}");
                             halt(401);
+                            return "{}";
                         }
                     }
                 } catch (RequestException e) {
@@ -75,8 +78,10 @@ public final class Main {
                 res.status(200);
                 res.type("application/json");
                 res.body(token);
+                System.out.println("Response = " + token);
                 return token;
             } else {
+                System.out.println("Missing required data = {}");
                 halt(401);
                 return "{}";
             }
@@ -107,7 +112,7 @@ public final class Main {
 
         return "{\"token\":" +
                 '"' + s + "\", \"access_token\": \"" + s + "\", \"expires_in\":" +
-                "\"3600\", \"issued_at\":\"" + DATE_FORMAT.format(issuedAt) + "\"}";
+                "3600, \"issued_at\":\"" + DATE_FORMAT.format(issuedAt) + "\"}";
     }
 
     private static Map<String, Object> getClaims(String scope) {
