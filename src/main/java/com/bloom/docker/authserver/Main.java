@@ -90,7 +90,7 @@ public final class Main {
 
     private static String token(String account, String scope) {
         Date issuedAt = new Date();
-        Date expiration = new Date(issuedAt.getTime() + 60000);
+        Date expiration = new Date(issuedAt.getTime() + 3600000);
         Date notBefore = new Date(issuedAt.getTime() - 2000);
 
         JwtBuilder builder = Jwts.builder()
